@@ -305,9 +305,11 @@ async def send_help(client: Client, message: Message):
 # Batch command handler
 # -------------------
 
-@Client.on_message(filters.command(["batch"]))
+@Client.on_message(filters.private & filters.command(["batch"]))
 async def batch_command(client: Client, message: Message):
     """Handle /batch command to start batch processing"""
+    logger.info(f"Batch command received from user {message.from_user.id}")
+    
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
     
@@ -344,8 +346,9 @@ async def batch_command(client: Client, message: Message):
 # Cancel command
 # -------------------
 
-@Client.on_message(filters.command(["cancel"]))
+@Client.on_message(filters.private & filters.command(["cancel"]))
 async def send_cancel(client: Client, message: Message):
+    logger.info(f"Cancel command received from user {message.from_user.id}")
     if batch_temp.IS_BATCH.get(message.from_user.id) == False:
         batch_temp.IS_BATCH[message.from_user.id] = True
         await message.reply_text("❌ **Batch Process Cancelled Successfully.**", parse_mode=enums.ParseMode.HTML)
@@ -356,7 +359,7 @@ async def send_cancel(client: Client, message: Message):
 # Handle incoming messages
 # -------------------
 
-@Client.on_message(filters.text & filters.private & ~filters.regex("^/"))
+@Client.on_message(filters.private & filters.text & ~filters.regex("^/"))
 async def save(client: Client, message: Message):
     if "https://t.me/" in message.text:
         # Check if batch is already running
