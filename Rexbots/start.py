@@ -96,13 +96,43 @@ LOADING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇",
 PULSE_FRAMES = ["▓", "▒", "░"]
 SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
+# Hindi Motivational Quotes for Progress Bar
+MOTIVATIONAL_QUOTES = [
+    "शुरुआत ही जीत की आधी राह है!",
+    "हर कदम आगे बढ़ाएगा!",
+    "मेहनत रंग लाएगी!",
+    "सपने सच बनाओ!",
+    "आज का प्रयास कल की सफलता!",
+    "रोकना मत, चलते रहो!",
+    "तुम्हारी मेहनत फल देगी!",
+    "लक्ष्य तक पहुंचने का समय!",
+    "थोड़ा और प्रयास, जीत करीब!",
+    "पूर्णता का द्वार खुल रहा है!",
+    "बधाई! आपने इसे पूरा किया!"
+]
+
+# Enhanced Animated Progress Bars for each 10% level
+PROGRESS_BARS = {
+    0: "🔹🔸🔻🔹🔸🔻🔹🔸🔻🔹",
+    10: "💥🔹⭐🍀🌙🔥🎯⚡🍩🔸",
+    20: "🌟🎧🎲🍫🧩⚙️🎈😎💧🔥",
+    30: "🍪🧩🌀💣🦄🧲🌙🚦🍟🐾",
+    40: "🧱🍀🎯🍩💥🎧💤🦋🎮🔊",
+    50: "🎉🌞🍫🧲🍕🎲🧃💥🎧🍀",
+    60: "🎯🧊🎈💜⭐🍩🧩🐢☀️🛸",
+    70: "🧩💥🎧🍪🎮🌀⚙️🍀🎲🌈",
+    80: "🎊🍕🎈🛸🍫🌙🦄🔥🍟⭐",
+    90: "🌀🧲🎯🌈🍕💥⭐🎮🧩🍀",
+    100: "🌈🌈🌈🌈🌈🌈🌈🌈🌈🌈"
+}
+
 # Modern animated progress bar with complete details - Enhanced Version
 PROGRESS_BAR_DASHBOARD = """\
 ╔══════════════════════════════════════════╗
 ║  {spinner}  📊 {status}              ║
 ╠══════════════════════════════════════════╣
-║  {bar}                           ║
-║  ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░  {percentage:>5.1f}%     ║
+║  {animated_bar}                     ║
+║  {percentage_bar}  {percentage:>5.1f}%     ║
 ╠══════════════════════════════════════════╣
 ║  📁 Size:    {current:>10} / {total:<10} ║
 ║  ⚡ Speed:   {speed:>10}/s            ║
@@ -110,6 +140,7 @@ PROGRESS_BAR_DASHBOARD = """\
 ║  ⏰ Elapsed: {elapsed:<15}         ║
 ║  📶 Progress:{progress:>15}      ║
 ╚══════════════════════════════════════════╝
+{quote}
 Task ID: {task_id}
 """
 
@@ -176,17 +207,17 @@ def progress(current, total, message, type):
         progress.cache = {}
     if not hasattr(progress, "frame_index"):
         progress.frame_index = 0
-    
+
     now = time.time()
     task_id = f"{message.id}{type}"
     last_time = progress.cache.get(task_id, 0)
-    
+
     # Track start time for speed calc
     if not hasattr(progress, "start_time"):
         progress.start_time = {}
     if task_id not in progress.start_time:
         progress.start_time[task_id] = now
-        
+
     # Update every 0.5 seconds for smoother animation
     if (now - last_time) > 0.5 or current == total:
         try:
@@ -194,7 +225,7 @@ def progress(current, total, message, type):
             speed = current / (now - progress.start_time[task_id]) if (now - progress.start_time[task_id]) > 0 else 0
             eta = (total - current) / speed if speed > 0 else 0
             elapsed = now - progress.start_time[task_id]
-            
+
             # Status emoji and text based on type
             if type == "down":
                 status_emoji = "📥 DOWNLOAD"
@@ -202,18 +233,18 @@ def progress(current, total, message, type):
             else:
                 status_emoji = "📤 UPLOAD"
                 status_color = "🟢"
-            
+
             # Get animated spinner frame (cycles through different animations)
             frame_idx = int(now * 3) % len(LOADING_FRAMES)
             spinner = LOADING_FRAMES[frame_idx]
-            
+
             # Progress Bar - 20 blocks with gradient effect
             filled_length = int(percentage / 5)  # 20 blocks for 100%
             bar = '█' * filled_length + '░' * (20 - filled_length)
-            
+
             # Animated progress indicator with color
             progress_anim = "░░░░░░░░░░"[int(percentage/10):] + "▓▓▓▓▓▓▓▓▓▓"[:int(percentage/10)]
-            
+
             # Dynamic status color based on progress
             if percentage < 25:
                 status_color = "🔴"
@@ -223,13 +254,37 @@ def progress(current, total, message, type):
                 status_color = "🟡"
             else:
                 status_color = "🟢"
-            
+
             status = f"{status_color} {status_emoji}"
-            
+
+            # Get progress level (0,10,20,...,100)
+            progress_level = int(percentage // 10) * 10
+            if progress_level > 100:
+                progress_level = 100
+
+            # Select animated bar based on level
+            animated_bar = PROGRESS_BARS.get(progress_level, PROGRESS_BARS[0])
+
+            # Add pulsing effect to animated bar
+            pulse_idx = int(now * 2) % 3
+            if pulse_idx == 0:
+                animated_bar = animated_bar.replace('🔹', '🔸').replace('⭐', '🌟')
+            elif pulse_idx == 1:
+                animated_bar = animated_bar.replace('🔸', '🔹').replace('🌟', '⭐')
+
+            # Select motivational quote
+            quote_index = min(progress_level // 10, len(MOTIVATIONAL_QUOTES) - 1)
+            quote = f"💬 {MOTIVATIONAL_QUOTES[quote_index]}"
+
+            # Create dynamic percentage bar with filled blocks
+            filled_blocks = int(percentage / 5)  # 20 blocks
+            percentage_bar = '▓' * filled_blocks + '░' * (20 - filled_blocks)
+
             status_formatted = PROGRESS_BAR_DASHBOARD.format(
                 spinner=spinner,
                 status=status,
-                bar=bar,
+                animated_bar=animated_bar,
+                percentage_bar=percentage_bar,
                 percentage=percentage,
                 current=humanbytes(current),
                 total=humanbytes(total),
@@ -237,19 +292,20 @@ def progress(current, total, message, type):
                 eta=TimeFormatter(eta * 1000),
                 elapsed=TimeFormatter(elapsed * 1000),
                 progress=progress_anim,
+                quote=quote,
                 task_id=task_id[:8]
             )
-            
+
             with open(f'{message.id}{type}status.txt', "w", encoding='utf-8') as fileup:
                 fileup.write(status_formatted)
-                
+
             progress.cache[task_id] = now
-            
+
             if current == total:
                 # Cleanup cache
                 progress.start_time.pop(task_id, None)
                 progress.cache.pop(task_id, None)
-                
+
         except:
             pass
 
