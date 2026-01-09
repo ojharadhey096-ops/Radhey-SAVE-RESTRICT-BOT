@@ -50,7 +50,7 @@ async def check_login_state(_, __, message):
 
 login_state_filter = filters.create(check_login_state)
 
-@Client.on_message(filters.private & filters.text & login_state_filter)
+@Client.on_message(filters.private & filters.text & login_state_filter & ~filters.regex("^/"))
 async def login_handler(bot: Client, message: Message):
     user_id = message.from_user.id
     # No need to check "if user_id not in LOGIN_STATE" again, filter did it.
