@@ -98,14 +98,11 @@ async def remove_premium_cmd(client: Client, message: Message):
 async def premium_users_list(client: Client, message: Message):
     users = await db.get_premium_users()
     count = 0
-    text = "**💎 Premium Users List:**\n\n"
     async for user in users:
-        text += f"`{user['id']}` - Exp: {user.get('premium_expiry', 'Unknown')}\n"
         count += 1
-    
-    if count == 0:
-        text += "No premium users found."
-        
+
+    text = f"**💎 Total Active Premium Users: {count}**"
+
     await message.reply_text(text)
 
 # Rexbots

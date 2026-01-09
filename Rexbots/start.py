@@ -342,13 +342,16 @@ async def send_start(client: Client, message: Message):
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
 
+    session = await db.get_session(message.from_user.id)
+    login_status = "✅ Logged In" if session else "❌ Not Logged In"
+
     buttons = [
         [
             InlineKeyboardButton("🆘 How To Use", callback_data="help_btn"),
             InlineKeyboardButton("ℹ️ About Bot", callback_data="about_btn"),
         ],
         [
-             InlineKeyboardButton("⚙️ Settings", callback_data="settings_btn")
+              InlineKeyboardButton("⚙️ Settings", callback_data="settings_btn")
         ],
         [
             InlineKeyboardButton('📢 Official Channel', url='https://t.me/RexBots_Official'),
@@ -366,6 +369,7 @@ async def send_start(client: Client, message: Message):
             "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
             "<b>‣ Support Private & Public Channels</b>\n"
             "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
+            f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
             "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
         ),
         reply_markup=reply_markup,
@@ -1114,6 +1118,9 @@ async def button_callbacks(client: Client, callback_query):
 
     # Home / Start button
     elif data == "start_btn":
+        session = await db.get_session(callback_query.from_user.id)
+        login_status = "✅ Logged In" if session else "❌ Not Logged In"
+
         start_buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🆘 How To Use", callback_data="help_btn"),
@@ -1134,6 +1141,7 @@ async def button_callbacks(client: Client, callback_query):
                 "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
                 "<b>‣ Support Private & Public Channels</b>\n"
                 "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
+                f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
                 "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
             ),
             reply_markup=start_buttons,
