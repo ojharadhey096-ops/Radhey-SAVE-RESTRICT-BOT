@@ -655,7 +655,7 @@ async def process_and_upload(client, userbot, sender, edit_id, msg, file, messag
 
     await client.delete_messages(sender, edit_id)
 
-@Client.on_message(filters.private & filters.text & ~filters.regex("^/") & ~filters.create(lambda _, __, msg: msg.chat.id in user_queues))
+@Client.on_message(filters.private & filters.text & ~filters.regex("^/") & ~filters.create(lambda _, __, msg: msg.chat.id in user_queues) & ~filters.regex(r'^https?://t\.me/'))
 async def save(client: Client, message: Message):
     try:
         logger.info(f"Received message from {message.from_user.id}: {message.text}")
