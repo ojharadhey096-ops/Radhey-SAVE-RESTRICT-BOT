@@ -304,29 +304,21 @@ def progress(current, total, message, type):
             if progress_level > 100:
                 progress_level = 100
 
-            # Select animated bar based on level
-            animated_bar = PROGRESS_BARS.get(progress_level, PROGRESS_BARS[0])
+            # Determine color based on progress
+            if percentage < 25:
+                bar_color = '#ff0000'  # red
+            elif percentage < 50:
+                bar_color = '#ffa500'  # orange
+            elif percentage < 75:
+                bar_color = '#ffff00'  # yellow
+            else:
+                bar_color = '#00ff00'  # green
 
-            # Add pulsing effect to animated bar
-            pulse_idx = int(now * 2) % 3
-            if pulse_idx == 0:
-                animated_bar = animated_bar.replace('🔹', '🔸').replace('⭐', '🌟')
-            elif pulse_idx == 1:
-                animated_bar = animated_bar.replace('🔸', '🔹').replace('🌟', '⭐')
+            # Create colorful progress bar
+            filled_length = int(percentage / 5)  # 20 blocks
+            bar = f'<span style="color:{bar_color}">' + '█' * filled_length + '</span>' + '░' * (20 - filled_length)
 
-            # Select motivational quote
-            quote_index = min(progress_level // 10, len(MOTIVATIONAL_QUOTES) - 1)
-            quote = f"💬 {MOTIVATIONAL_QUOTES[quote_index]}"
-
-            # Create dynamic percentage bar with filled blocks
-            filled_blocks = int(percentage / 5)  # 20 blocks
-            percentage_bar = '▓' * filled_blocks + '░' * (20 - filled_blocks)
-
-            status_formatted = PROGRESS_BAR_DASHBOARD.format(
-                animated_bar=animated_bar,
-                percentage=percentage,
-                quote=quote
-            )
+            status_formatted = f"{spinner} {status_emoji} |{bar}| {percentage:.1f}% | Speed: {speed:.2f} B/s | ETA: {TimeFormatter(int(eta))}"
 
             with open(f'{message.id}{type}status.txt', "w", encoding='utf-8') as fileup:
                 fileup.write(status_formatted)
