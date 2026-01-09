@@ -207,8 +207,8 @@ async def downstatus(client, statusfile, message, chat):
             await client.edit_message_text(
                 chat,
                 message.id,
-                f"╔══════════════════════════════╗\n║     📥 **DOWNLOADING**        ║\n╠══════════════════════════════╣\n{txt}",
-                parse_mode=enums.ParseMode.HTML
+                f"📥 **DOWNLOADING**\n{txt}",
+                parse_mode=enums.ParseMode.MARKDOWN
             )
             await asyncio.sleep(5)
         except:
@@ -228,8 +228,8 @@ async def upstatus(client, statusfile, message, chat):
             await client.edit_message_text(
                 chat,
                 message.id,
-                f"╔══════════════════════════════╗\n║     📤 **UPLOADING**          ║\n╠══════════════════════════════╣\n{txt}",
-                parse_mode=enums.ParseMode.HTML
+                f"📤 **UPLOADING**\n{txt}",
+                parse_mode=enums.ParseMode.MARKDOWN
             )
             await asyncio.sleep(5)
         except:
@@ -318,7 +318,7 @@ def progress(current, total, message, type):
             filled_length = int(percentage / 5)  # 20 blocks
             bar = f'<span style="color:{bar_color}">' + '█' * filled_length + '</span>' + '░' * (20 - filled_length)
 
-            status_formatted = f"{spinner} {status_emoji} |{bar}| {percentage:.1f}% | Speed: {speed:.2f} B/s | ETA: {TimeFormatter(int(eta))}"
+            status_formatted = f"{spinner} {status_emoji} |{bar}| {percentage:.1f}% | {TimeFormatter(int(eta))}"
 
             with open(f'{message.id}{type}status.txt', "w", encoding='utf-8') as fileup:
                 fileup.write(status_formatted)
@@ -847,9 +847,9 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
 
     smsg = await client.send_message(
         message.chat.id,
-        '╔══════════════════════════════╗\n║     🚀 **PROCESSING**          ║\n╠══════════════════════════════╣\n║  Preparing your file...       ║\n║  Please wait...               ║\n╚══════════════════════════════╝',
+        '🚀 **PROCESSING**\nPreparing your file... Please wait...',
         reply_to_message_id=message.id,
-        parse_mode=enums.ParseMode.HTML
+        parse_mode=enums.ParseMode.MARKDOWN
     )
     
     # ----------------------------------------
