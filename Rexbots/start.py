@@ -150,6 +150,16 @@ LOADING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇",
 PULSE_FRAMES = ["▓", "▒", "░"]
 SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
+# Modern Progress Bar Design
+MODERN_PROGRESS_BAR = "🟩{filled}🟨{current}🟥{remaining}"
+
+# Colorful status indicators
+STATUS_COLORS = {
+    "down": "📥",
+    "up": "📤",
+    "processing": "🔄"
+}
+
 # Hindi Motivational Quotes for Progress Bar
 MOTIVATIONAL_QUOTES = [
     "शुरुआत ही जीत की आधी राह है!",
@@ -293,11 +303,20 @@ def progress(current, total, message, type):
             if progress_level > 100:
                 progress_level = 100
 
-            # Create colorful progress bar with color indicators
-            filled_length = int(percentage / 5)  # 20 blocks for 100%
-            bar = '█' * filled_length + '░' * (20 - filled_length)
+            # Create modern progress bar with color indicators
+            filled_length = int(percentage / 10)  # 10 blocks for 100%
+            current_block = "🟨" if percentage < 100 else "🟩"
+            remaining_length = 10 - filled_length - (1 if percentage < 100 else 0)
             
-            status_formatted = f"{spinner} {status_emoji_color} {status_emoji} |{bar}| {percentage:.1f}% | ETA: {TimeFormatter(int(eta))}"
+            # Modern progress bar format
+            progress_bar = MODERN_PROGRESS_BAR.format(
+                filled="🟩" * filled_length,
+                current=current_block,
+                remaining="🟥" * remaining_length
+            )
+            
+            status_emoji = STATUS_COLORS.get(type, "🔄")
+            status_formatted = f"{spinner} {status_emoji} |{progress_bar}| {percentage:.1f}% | {humanbytes(current)}/{humanbytes(total)} | {humanbytes(speed)}/s | ETA: {TimeFormatter(int(eta))}"
 
             with open(f'{message.id}{type}status.txt', "w", encoding='utf-8') as fileup:
                 fileup.write(status_formatted)
@@ -426,20 +445,26 @@ async def batch_command(client: Client, message: Message):
 
             for i in range(int(s), int(l)):
                 if user_id in users_loop and users_loop[user_id]:
-                    msg = await client.send_message(message.chat.id, "Processing!")
+                    msg = await client.send_message(message.chat.id, "🔄 Processing message...")
                     try:
                         x = start_id.split('/')
                         y = x[:-1]
                         result = '/'.join(y)
                         url = f"{result}/{i}"
                         link = get_link(url)
+                        
+                        # Show actual download/upload progress
+                        await client.edit_message_text(message.chat.id, msg.id, "📥 Downloading message...")
                         await handle_private(client, userbot, message, get_chat_id_from_link(link), get_msg_id_from_link(link))
-                        sleep_msg = await client.send_message(message.chat.id, "Sleeping for 10 seconds to avoid flood...")
-                        await asyncio.sleep(8)
-                        await sleep_msg.delete()
-                        await asyncio.sleep(2)
+                        
+                        # Add delay to avoid floodwait
+                        if i % 5 == 0:  # Only sleep every 5 messages to reduce delay
+                            sleep_msg = await client.send_message(message.chat.id, "⏳ Sleeping for 3 seconds to avoid flood...")
+                            await asyncio.sleep(3)
+                            await sleep_msg.delete()
                     except Exception as e:
                         print(f"Error processing link {url}: {e}")
+                        await client.edit_message_text(message.chat.id, msg.id, f"❌ Error: {str(e)}")
                         continue
                 else:
                     break
@@ -447,7 +472,32 @@ async def batch_command(client: Client, message: Message):
             await client.send_message(message.chat.id, f"Error: {str(e)}")
 
     except FloodWait as fw:
-        await client.send_message(message.chat.id, f'Try again after {fw.x} seconds due to floodwait from Telegram.')
+        wait_time = min(fw.x, 300)  # Cap wait time at 5 minutes to avoid excessive delays
+        await client.send_message(message.chat.id, f'⏳ FloodWait detected! Waiting {wait_time} seconds before continuing...')
+        await asyncio.sleep(wait_time)
+        # Retry the operation after wait
+        try:
+            for i in range(int(s), int(l)):
+                if user_id in users_loop and users_loop[user_id]:
+                    msg = await client.send_message(message.chat.id, "🔄 Retrying after FloodWait...")
+                    try:
+                        x = start_id.split('/')
+                        y = x[:-1]
+                        result = '/'.join(y)
+                        url = f"{result}/{i}"
+                        link = get_link(url)
+                        await handle_private(client, userbot, message, get_chat_id_from_link(link), get_msg_id_from_link(link))
+                        if i % 5 == 0:
+                            sleep_msg = await client.send_message(message.chat.id, "⏳ Sleeping for 3 seconds...")
+                            await asyncio.sleep(3)
+                            await sleep_msg.delete()
+                    except Exception as e:
+                        print(f"Error processing link {url}: {e}")
+                        continue
+                else:
+                    break
+        except Exception as e:
+            await client.send_message(message.chat.id, f'❌ Error during retry: {str(e)}')
     except Exception as e:
         await client.send_message(message.chat.id, f"Error: {str(e)}")
 

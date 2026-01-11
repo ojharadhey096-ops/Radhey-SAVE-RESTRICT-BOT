@@ -77,6 +77,9 @@ async def login_handler(bot: Client, message: Message):
                 "If OTP Is 12345, Please Send It As '12 345' (with space) or '12345'.__**\n\n"
                 "Send /cancellogin to Cancel."
             )
+            
+            # Show success message after OTP is sent
+            await message.reply("**✅ OTP Sent Successfully! Please check your Telegram app and enter the code.**")
 # Rexbots
 # Don't Remove Credit
 # Telegram Channel @RexBots_Official
