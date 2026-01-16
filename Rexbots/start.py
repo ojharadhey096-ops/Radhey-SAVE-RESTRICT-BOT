@@ -153,8 +153,8 @@ PULSE_FRAMES = ["▓", "▒", "░"]
 SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
 # Progress system constants
-START_STICKER_ID = "CAACAgIAAxkBAAEJ..."  # Replace with actual start sticker ID
-DONE_STICKER_ID = "CAACAgIAAxkBAAEJ..."   # Replace with actual done sticker ID
+START_STICKER_ID = None  # Sticker IDs removed to prevent errors
+DONE_STICKER_ID = None   # Sticker IDs removed to prevent errors
 
 # File type emojis
 FILE_TYPE_EMOJIS = {
@@ -294,7 +294,8 @@ def progress(current, total, client, progress_msg_id, message, type_, msg, user_
 
     # On complete
     if current >= total:
-        client.loop.create_task(client.send_sticker(message.chat.id, DONE_STICKER_ID, reply_to_message_id=message.id))
+        if DONE_STICKER_ID:
+            client.loop.create_task(client.send_sticker(message.chat.id, DONE_STICKER_ID, reply_to_message_id=message.id))
         # Clean up
         progress.start_time.pop(key, None)
 # -------------------
@@ -1253,7 +1254,8 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         user_name = message.from_user.first_name
 
         # Send start sticker and progress message
-        await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
+        if START_STICKER_ID:
+            await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
         progress_msg = await client.send_message(message.chat.id, "Starting download...", reply_to_message_id=message.id)
 
         # Download into unique directory (folder path must end with / for Pyrogram)
@@ -1318,7 +1320,8 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
 
     try:
         # Send start sticker and progress message for upload
-        await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
+        if START_STICKER_ID:
+            await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
         progress_msg = await client.send_message(message.chat.id, "Starting upload...", reply_to_message_id=message.id)
 
         # Ensure file exists before attempting to send
