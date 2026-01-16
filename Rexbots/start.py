@@ -15,10 +15,11 @@ import platform
 import sys
 from pyrogram import Client, filters, enums
 from pyrogram.errors import (
-    FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, 
+    FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant,
     InviteHashExpired, UsernameNotOccupied, AuthKeyUnregistered, UserDeactivated, UserDeactivatedBan
 )
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from pyrogram.enums import MessageMediaType
 from config import API_ID, API_HASH, ERROR_MESSAGE, LOG_CHANNEL, ADMINS
 from database.db import db
 import math
