@@ -532,35 +532,43 @@ async def batch_command(client: Client, message: Message):
                                         try:
                                             # Create processing message
                                             processing_msg = await client.send_message(message.chat.id, f"🔄 Processing message {current_msg_id}...")
-                                            
+
                                             # Build the URL
                                             url = f"{base_link}{current_msg_id}"
                                             link = get_link(url)
-                                            
+
                                             if not link:
                                                 await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Invalid link format for message {current_msg_id}")
                                                 continue
-                                            
-                                            # Show download status
-                                            await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
-                                            
+
                                             # Get chat and message IDs
                                             chat_id = get_chat_id_from_link(link)
                                             msg_id = get_msg_id_from_link(link)
-                                            
-                                            # Handle the private message
-                                            success = await handle_private(client, userbot, message, chat_id, msg_id)
-                                            
-                                            if success:
-                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"✅ Completed message {current_msg_id}")
-                                            else:
-                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to process message {current_msg_id}")
-                                            
+
+                                            # Get the message
+                                            msg = await userbot.get_messages(chat_id, msg_id)
+                                            if msg.empty or msg.service:
+                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Message {current_msg_id} not found or empty")
+                                                continue
+
+                                            # Download
+                                            await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
+                                            file = await userbot.download_media(msg)
+                                            if not file or not os.path.exists(file):
+                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to download message {current_msg_id}")
+                                                continue
+                                            await asyncio.sleep(1)
+
+                                            # Upload
+                                            await client.edit_message_text(message.chat.id, processing_msg.id, f"📤 Uploading message {current_msg_id}...")
+                                            await process_and_upload_simple(client, message.chat.id, processing_msg.id, msg, file)
+
                                             # Add delay to avoid floodwait (only every 5 messages)
                                             if (current_msg_id - start_msg_id) % 5 == 0 and current_msg_id != end_msg_id:
                                                 sleep_msg = await client.send_message(message.chat.id, "⏳ Sleeping for 3 seconds to avoid flood...")
                                                 await asyncio.sleep(3)
                                                 await sleep_msg.delete()
+
                                         except Exception as e:
                                             error_msg = f"❌ Error processing message {current_msg_id}: {str(e)}"
                                             print(error_msg)
@@ -689,45 +697,49 @@ async def handle_batch_conversation(client: Client, message: Message):
                                 try:
                                     # Create processing message
                                     processing_msg = await client.send_message(message.chat.id, f"🔄 Processing message {current_msg_id}...")
-                                    
+
                                     # Build the URL
                                     x = start_id.split('/')
                                     y = x[:-1]
                                     result = '/'.join(y)
                                     url = f"{result}/{current_msg_id}"
                                     link = get_link(url)
-                                    
+
                                     if not link:
                                         await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Invalid link format for message {current_msg_id}")
                                         continue
-                                    
-                                    # Show download status
-                                    await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
-                                    
+
                                     # Get chat and message IDs
                                     chat_id = get_chat_id_from_link(link)
                                     msg_id = get_msg_id_from_link(link)
-                                    
-                                    # Debug: Log the message details
-                                    print(f"Processing message {current_msg_id}: chat={chat_id}, msg_id={msg_id}")
-                                    
-                                    # Handle the private message
-                                    success = await handle_private(client, userbot, message, chat_id, msg_id)
-                                    
-                                    if success:
-                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"✅ Completed message {current_msg_id}")
-                                    else:
-                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to process message {current_msg_id}")
-                                    
+
+                                    # Get the message
+                                    msg = await userbot.get_messages(chat_id, msg_id)
+                                    if msg.empty or msg.service:
+                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Message {current_msg_id} not found or empty")
+                                        continue
+
+                                    # Download
+                                    await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
+                                    file = await userbot.download_media(msg)
+                                    if not file or not os.path.exists(file):
+                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to download message {current_msg_id}")
+                                        continue
+                                    await asyncio.sleep(1)
+
+                                    # Upload
+                                    await client.edit_message_text(message.chat.id, processing_msg.id, f"📤 Uploading message {current_msg_id}...")
+                                    await process_and_upload_simple(client, message.chat.id, processing_msg.id, msg, file)
+
                                     # Add delay to avoid floodwait (only every 5 messages)
                                     if (current_msg_id - start_msg_id) % 5 == 0 and current_msg_id != end_msg_id:
                                         sleep_msg = await client.send_message(message.chat.id, "⏳ Sleeping for 3 seconds to avoid flood...")
                                         await asyncio.sleep(3)
                                         await sleep_msg.delete()
-                                        
+
                                 except Exception as e:
                                     error_msg = f"❌ Error processing message {current_msg_id}: {str(e)}"
-                                    print(error_msg)  # Debug log
+                                    print(error_msg)
                                     await client.send_message(message.chat.id, error_msg)
                                     continue
                             else:
@@ -772,20 +784,6 @@ async def send_cancel(client: Client, message: Message):
 # Handle incoming messages
 # -------------------
 
-# Handler for batch conversation responses
-@Client.on_message(filters.private & filters.text & ~filters.regex("^/"))
-async def handle_batch_response(client: Client, message: Message):
-    chat_id = message.chat.id
-    
-    # First check if this is a batch conversation
-    if chat_id in batch_conversations:
-        # Let the batch conversation handler process this
-        return
-    
-    # Then check user queues
-    if chat_id in user_queues:
-        await user_queues[chat_id].put(message)
-        return
 
 @Client.on_message(filters.private & filters.regex(r'https?://[^\s]+') & ~filters.create(lambda _, __, msg: msg.chat.id in user_queues))
 async def single_link(client: Client, message: Message):
