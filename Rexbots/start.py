@@ -887,6 +887,10 @@ async def process_and_upload_simple(client, sender, edit_id, msg, file):
     try:
         await client.edit_message_text(sender, edit_id, "📤 Uploading...")
         
+        # Verify file exists and is valid before uploading
+        if not file or not os.path.exists(file):
+            raise Exception("Media file not found for upload")
+        
         if msg.media == MessageMediaType.VIDEO:
             await client.send_video(
                 chat_id=sender,
@@ -915,6 +919,8 @@ async def process_and_upload_simple(client, sender, edit_id, msg, file):
                 os.remove(file)
             except:
                 pass
+        # Send error message to user
+        await client.edit_message_text(sender, edit_id, f"❌ Upload failed: {str(e)}")
 
 async def copy_message_public(client, sender, chat_id, message_id, original_message):
     try:
