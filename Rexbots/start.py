@@ -304,64 +304,84 @@ def progress(current, total, client, progress_msg_id, message, type_, msg, user_
 
 @Client.on_message(filters.command(["start"]))
 async def send_start(client: Client, message: Message):
-    if not await db.is_user_exist(message.from_user.id):
-        await db.add_user(message.from_user.id, message.from_user.first_name)
-
-    session = await db.get_session(message.from_user.id)
-    login_status = "✅ Logged In" if session else "❌ Not Logged In"
-
-    buttons = [
-        [
-            InlineKeyboardButton("🆘 How To Use", callback_data="help_btn"),
-            InlineKeyboardButton("ℹ️ About Bot", callback_data="about_btn"),
-        ],
-        [
-              InlineKeyboardButton("⚙️ Settings", callback_data="settings_btn")
-        ],
-        [
-            InlineKeyboardButton('📢 Official Channel', url='https://t.me/RexBots_Official'),
-            InlineKeyboardButton('👨‍💻 Developer', url='https://t.me/about_zani/143')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(buttons)
-
     try:
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=(
-                f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
-                "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
-                "<blockquote><b>🚀 What I Can Do:</b>\n"
-                "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
-                "<b>‣ Support Private & Public Channels</b>\n"
-                "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
-                f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
-                "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
-            ),
-            reply_markup=reply_markup,
-            reply_to_message_id=message.id,
-            parse_mode=enums.ParseMode.HTML
-        )
-    except FloodWait as e:
-        # Handle flood wait by sleeping for the required duration
-        await asyncio.sleep(e.value)
-        # Retry the message after the wait period
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=(
-                f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
-                "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
-                "<blockquote><b>🚀 What I Can Do:</b>\n"
-                "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
-                "<b>‣ Support Private & Public Channels</b>\n"
-                "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
-                f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
-                "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
-            ),
-            reply_markup=reply_markup,
-            reply_to_message_id=message.id,
-            parse_mode=enums.ParseMode.HTML
-        )
+        if not await db.is_user_exist(message.from_user.id):
+            await db.add_user(message.from_user.id, message.from_user.first_name)
+
+        session = await db.get_session(message.from_user.id)
+        login_status = "✅ Logged In" if session else "❌ Not Logged In"
+
+        buttons = [
+            [
+                InlineKeyboardButton("🆘 How To Use", callback_data="help_btn"),
+                InlineKeyboardButton("ℹ️ About Bot", callback_data="about_btn"),
+            ],
+            [
+                  InlineKeyboardButton("⚙️ Settings", callback_data="settings_btn")
+            ],
+            [
+                InlineKeyboardButton('📢 Official Channel', url='https://t.me/RexBots_Official'),
+                InlineKeyboardButton('👨‍💻 Developer', url='https://t.me/about_zani/143')
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(buttons)
+
+        try:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text=(
+                    f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
+                    "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
+                    "<blockquote><b>🚀 What I Can Do:</b>\n"
+                    "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
+                    "<b>‣ Support Private & Public Channels</b>\n"
+                    "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
+                    f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
+                    "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
+                ),
+                reply_markup=reply_markup,
+                reply_to_message_id=message.id,
+                parse_mode=enums.ParseMode.HTML
+            )
+        except FloodWait as e:
+            # Handle flood wait by sleeping for the required duration
+            await asyncio.sleep(e.value)
+            # Retry the message after the wait period
+            try:
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text=(
+                        f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
+                        "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
+                        "<blockquote><b>🚀 What I Can Do:</b>\n"
+                        "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
+                        "<b>‣ Support Private & Public Channels</b>\n"
+                        "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
+                        f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
+                        "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
+                    ),
+                    reply_markup=reply_markup,
+                    reply_to_message_id=message.id,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            except Exception as e2:
+                # If retry also fails, send a simple message
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text="Welcome to Save Restricted Content Bot! Please try again later.",
+                    reply_to_message_id=message.id
+                )
+    except Exception as e:
+        logger.error(f"Error in start command: {e}")
+        # Send a simple error message
+        try:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="Welcome to Save Restricted Content Bot! There was an issue loading your data.",
+                reply_to_message_id=message.id
+            )
+        except:
+            pass  # If even this fails, ignore
 
     # try:
     #     await message.react(
