@@ -152,56 +152,24 @@ LOADING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇",
 PULSE_FRAMES = ["▓", "▒", "░"]
 SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
-# Modern Progress Bar Design
-MODERN_PROGRESS_BAR = "🟩{filled}🟨{current}🟥{remaining}"
+# Progress system constants
+START_STICKER_ID = "CAACAgIAAxkBAAEJ..."  # Replace with actual start sticker ID
+DONE_STICKER_ID = "CAACAgIAAxkBAAEJ..."   # Replace with actual done sticker ID
 
-# Colorful status indicators
-STATUS_COLORS = {
-    "down": "📥",
-    "up": "📤",
-    "processing": "🔄"
+# File type emojis
+FILE_TYPE_EMOJIS = {
+    "Video": "📹",
+    "Audio": "🎵",
+    "Document": "📄",
+    "Photo": "🖼️",
+    "Animation": "🎞️",
+    "Sticker": "🎭",
+    "Voice": "🎤",
+    "Text": "📝"
 }
 
-# Hindi Motivational Quotes for Progress Bar
-MOTIVATIONAL_QUOTES = [
-    "शुरुआत ही जीत की आधी राह है!",
-    "हर कदम आगे बढ़ाएगा!",
-    "मेहनत रंग लाएगी!",
-    "सपने सच बनाओ!",
-    "आज का प्रयास कल की सफलता!",
-    "रोकना मत, चलते रहो!",
-    "तुम्हारी मेहनत फल देगी!",
-    "लक्ष्य तक पहुंचने का समय!",
-    "थोड़ा और प्रयास, जीत करीब!",
-    "पूर्णता का द्वार खुल रहा है!",
-    "बधाई! आपने इसे पूरा किया!"
-]
-
-# Enhanced Animated Progress Bars for each 10% level
-PROGRESS_BARS = {
-    0: "🔹🔸🔻🔹🔸🔻🔹🔸🔻🔹",
-    10: "💥🔹⭐🍀🌙🔥🎯⚡🍩🔸",
-    20: "🌟🎧🎲🍫🧩⚙️🎈😎💧🔥",
-    30: "🍪🧩🌀💣🦄🧲🌙🚦🍟🐾",
-    40: "🧱🍀🎯🍩💥🎧💤🦋🎮🔊",
-    50: "🎉🌞🍫🧲🍕🎲🧃💥🎧🍀",
-    60: "🎯🧊🎈💜⭐🍩🧩🐢☀️🛸",
-    70: "🧩💥🎧🍪🎮🌀⚙️🍀🎲🌈",
-    80: "🎊🍕🎈🛸🍫🌙🦄🔥🍟⭐",
-    90: "🌀🧲🎯🌈🍕💥⭐🎮🧩🍀",
-    100: "🌈🌈🌈🌈🌈🌈🌈🌈🌈🌈"
-}
-
-# Colorful Animated Progress Bar - Emoji Style
-PROGRESS_BAR_DASHBOARD = """\
-{animated_bar} {percentage:.1f}%
-{quote}
-"""
-
-# Compact progress bar for inline updates
-COMPACT_PROGRESS = """\
-{spinner} {status} |{bar}| {percentage:.1f}% | {current}/{total} | {speed}/s | ETA: {eta}
-"""
+# Global dict to store progress message IDs
+progress_messages = {}
 
 
 
@@ -250,89 +218,85 @@ async def upstatus(client, statusfile, message, chat):
 # -------------------
 # Progress writer
 # -------------------
-
-def progress(current, total, message, type):
+def progress(current, total, client, progress_msg_id, message, type_, msg, user_name, source):
+    """
+    Progress callback for download/upload with real-time updates, stickers, and detailed info.
+    """
     # Check for cancellation
     if batch_temp.IS_BATCH.get(message.from_user.id):
         raise Exception("Cancelled")
 
-    # Initialize cache if not exists
-    if not hasattr(progress, "cache"):
-        progress.cache = {}
-    if not hasattr(progress, "frame_index"):
-        progress.frame_index = 0
-
-    now = time.time()
-    task_id = f"{message.id}{type}"
-    last_time = progress.cache.get(task_id, 0)
-
-    # Track start time for speed calc
+    key = f"{message.id}_{type_}"
     if not hasattr(progress, "start_time"):
         progress.start_time = {}
-    if task_id not in progress.start_time:
-        progress.start_time[task_id] = now
+    if key not in progress.start_time:
+        progress.start_time[key] = time.time()
 
-    # Update every 0.5 seconds for smoother animation
-    if (now - last_time) > 0.5 or current == total:
-        try:
-            percentage = current * 100 / total
-            speed = current / (now - progress.start_time[task_id]) if (now - progress.start_time[task_id]) > 0 else 0
-            eta = (total - current) / speed if speed > 0 else 0
-            elapsed = now - progress.start_time[task_id]
+    start_time = progress.start_time[key]
+    now = time.time()
+    elapsed = now - start_time
+    if total > 0:
+        percentage = (current / total) * 100
+        speed = current / elapsed if elapsed > 0 else 0
+        eta = (total - current) / speed if speed > 0 else 0
+    else:
+        percentage = 0
+        speed = 0
+        eta = 0
 
-            # Status emoji based on type
-            if type == "down":
-                status_emoji = "📥 DOWNLOAD"
-            else:
-                status_emoji = "📤 UPLOAD"
+    # Get file info
+    msg_type = get_message_type(msg)
+    file_emoji = FILE_TYPE_EMOJIS.get(msg_type, "📦")
+    file_name = getattr(msg, 'document', None) and getattr(msg.document, 'file_name', None) or \
+               getattr(msg, 'video', None) and getattr(msg.video, 'file_name', None) or \
+               getattr(msg, 'audio', None) and getattr(msg.audio, 'file_name', None) or \
+               getattr(msg, 'photo', None) and "Photo" or \
+               msg_type
+    if not file_name:
+        file_name = msg_type
 
-            # Get animated spinner frame (cycles through different animations)
-            frame_idx = int(now * 3) % len(LOADING_FRAMES)
-            spinner = LOADING_FRAMES[frame_idx]
+    # Sizes
+    done_size = humanbytes(current)
+    total_size = humanbytes(total)
+    percent = int(percentage)
+    speed_str = f"{humanbytes(speed)}/s"
+    eta_str = TimeFormatter(int(eta))
+    elapsed_str = TimeFormatter(int(elapsed))
 
-            # Dynamic status color based on progress
-            if percentage < 25:
-                status_emoji_color = "🔴"
-            elif percentage < 50:
-                status_emoji_color = "🟠"
-            elif percentage < 75:
-                status_emoji_color = "🟡"
-            else:
-                status_emoji_color = "🟢"
+    # Progress bar
+    filled = percent // 10
+    remaining = 10 - filled
+    if percent < 100:
+        current_block = "🟨" if percent % 10 != 0 else ""
+        empty_count = remaining - len(current_block)
+        bar = "🟩" * filled + current_block + "⬜" * empty_count
+    else:
+        bar = "🟩" * 10
 
-            # Get progress level (0,10,20,...,100)
-            progress_level = int(percentage // 10) * 10
-            if progress_level > 100:
-                progress_level = 100
+    # Status
+    status = "📥 Downloading…" if type_ == "down" else "📤 Uploading…"
 
-            # Create modern progress bar with color indicators
-            filled_length = int(percentage / 10)  # 10 blocks for 100%
-            current_block = "🟨" if percentage < 100 else "🟩"
-            remaining_length = 10 - filled_length - (1 if percentage < 100 else 0)
-            
-            # Modern progress bar format
-            progress_bar = MODERN_PROGRESS_BAR.format(
-                filled="🟩" * filled_length,
-                current=current_block,
-                remaining="🟥" * remaining_length
-            )
-            
-            status_emoji = STATUS_COLORS.get(type, "🔄")
-            status_formatted = f"{spinner} {status_emoji} |{progress_bar}| {percentage:.1f}% | {humanbytes(current)}/{humanbytes(total)} | {humanbytes(speed)}/s | ETA: {TimeFormatter(int(eta))}"
+    # Message text
+    text = f"""{status}
+{file_emoji} File: {file_name}
+📦 Size: {done_size}/{total_size}
+⚡ Speed: {speed_str}
+⏳ Elapsed: {elapsed_str}
+⏳ ETA: {eta_str}
+📊 Done: {percent}%
+{bar}
+👤 User: {user_name}
+📍 Source: {source}
+"""
 
-            with open(f'{message.id}{type}status.txt', "w", encoding='utf-8') as fileup:
-                fileup.write(status_formatted)
+    # Edit the message
+    client.loop.create_task(client.edit_message_text(message.chat.id, progress_msg_id, text, parse_mode=enums.ParseMode.MARKDOWN))
 
-            progress.cache[task_id] = now
-
-            if current == total:
-                # Cleanup cache
-                progress.start_time.pop(task_id, None)
-                progress.cache.pop(task_id, None)
-
-        except:
-            pass
-
+    # On complete
+    if current >= total:
+        client.loop.create_task(client.send_sticker(message.chat.id, DONE_STICKER_ID, reply_to_message_id=message.id))
+        # Clean up
+        progress.start_time.pop(key, None)
 # -------------------
 # Start command
 # -------------------
@@ -1138,14 +1102,22 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
-    try:
-        asyncio.create_task(downstatus(client, f'{message.id}downstatus.txt', smsg, chat))
-    except Exception as e:
-        logger.error(f"Error creating download status task: {e}")
         
     try:
+        # Get source info for progress
+        try:
+            chat_info = await acc.get_chat(chatid)
+            source_title = chat_info.title if chat_info else str(chatid)
+        except:
+            source_title = str(chatid)
+        user_name = message.from_user.first_name
+
+        # Send start sticker and progress message
+        await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
+        progress_msg = await client.send_message(message.chat.id, "Starting download...", reply_to_message_id=message.id)
+
         # Download into unique directory (folder path must end with / for Pyrogram)
-        file = await acc.download_media(msg, file_name=f"{temp_dir}/", progress=progress, progress_args=[message, "down"])
+        file = await acc.download_media(msg, file_name=f"{temp_dir}/", progress=progress, progress_args=[client, progress_msg.id, message, "down", msg, user_name, source_title])
         
         # Ensure file was downloaded successfully
         if not file or not os.path.exists(file):
@@ -1193,10 +1165,6 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 pass
         return False
 
-    try:
-        asyncio.create_task(upstatus(client, f'{message.id}upstatus.txt', smsg, chat))
-    except Exception as e:
-        logger.error(f"Error creating upload status task: {e}")
     caption = clean_caption(msg.caption) if msg.caption else None
     
     if batch_temp.IS_BATCH.get(message.from_user.id):
@@ -1209,9 +1177,19 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         return False
 
     try:
+        # Send start sticker and progress message for upload
+        await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
+        progress_msg = await client.send_message(message.chat.id, "Starting upload...", reply_to_message_id=message.id)
+
         # Ensure file exists before attempting to send
         if not file or not os.path.exists(file):
             raise Exception("Media file not found for upload")
+        try:
+            chat_info = await acc.get_chat(chatid)
+            source_title = chat_info.title if chat_info else str(chatid)
+        except:
+            source_title = str(chatid)
+        user_name = message.from_user.first_name
             
         if "Document" == msg_type:
             try:
@@ -1220,7 +1198,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 ph_path = None
             await client.send_document(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id,
                                        parse_mode=enums.ParseMode.HTML, progress=progress,
-                                       progress_args=[message, "up"])
+                                       progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
             if ph_path and os.path.exists(ph_path):
                 os.remove(ph_path)
 
@@ -1232,7 +1210,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             await client.send_video(chat, file, duration=msg.video.duration, width=msg.video.width,
                                     height=msg.video.height, thumb=ph_path, caption=caption,
                                     reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML,
-                                    progress=progress, progress_args=[message, "up"])
+                                    progress=progress, progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
             if ph_path and os.path.exists(ph_path):
                 os.remove(ph_path)
 
@@ -1245,7 +1223,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         elif "Voice" == msg_type:
             await client.send_voice(chat, file, caption=caption, caption_entities=msg.caption_entities,
                                     reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML,
-                                    progress=progress, progress_args=[message, "up"])
+                                    progress=progress, progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
 
         elif "Audio" == msg_type:
             try:
@@ -1254,7 +1232,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 ph_path = None
             await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id,
                                     parse_mode=enums.ParseMode.HTML, progress=progress,
-                                    progress_args=[message, "up"])
+                                    progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
             if ph_path and os.path.exists(ph_path):
                 os.remove(ph_path)
 

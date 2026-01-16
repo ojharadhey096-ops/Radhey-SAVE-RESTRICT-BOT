@@ -75,6 +75,20 @@ class Bot(Client):
 
         await super().stop()
         logger.info(f"Bot @{me.username} Stopped - Bye")
+        
+        # Restart the bot after a delay
+        await asyncio.sleep(5)
+        logger.info(f"Restarting bot @{me.username}...")
+        BotInstance = Bot()
+        BotInstance.run()
+        
+        # Ensure the bot does not stop during active processes
+        if hasattr(self, 'is_processing') and self.is_processing:
+            logger.info("Bot is currently processing a task. Waiting for completion before restarting...")
+            await asyncio.sleep(10)
+            logger.info(f"Restarting bot @{me.username}...")
+            BotInstance = Bot()
+            BotInstance.run()
 
 
 def run_flask_app():
