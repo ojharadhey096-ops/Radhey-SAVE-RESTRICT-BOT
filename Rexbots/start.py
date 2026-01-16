@@ -154,8 +154,8 @@ PULSE_FRAMES = ["▓", "▒", "░"]
 SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
 # Progress system constants
-START_STICKER_ID = None  # Sticker IDs removed to prevent errors
-DONE_STICKER_ID = None   # Sticker IDs removed to prevent errors
+START_STICKER_ID = "xxxx"  # Replace with actual animated sticker file ID for start
+DONE_STICKER_ID = "xxxx"   # Replace with actual animated sticker file ID for done
 
 # File type emojis
 FILE_TYPE_EMOJIS = {
@@ -191,9 +191,9 @@ async def downstatus(client, statusfile, message, chat):
                 f"📥 **DOWNLOADING**\n{txt}",
                 parse_mode=enums.ParseMode.MARKDOWN
             )
-            await asyncio.sleep(5)
+            await asyncio.sleep(20)
         except:
-            await asyncio.sleep(3)
+            await asyncio.sleep(20)
 
 # -------------------
 # Upload status
@@ -212,9 +212,9 @@ async def upstatus(client, statusfile, message, chat):
                 f"📤 **UPLOADING**\n{txt}",
                 parse_mode=enums.ParseMode.MARKDOWN
             )
-            await asyncio.sleep(5)
+            await asyncio.sleep(20)
         except:
-            await asyncio.sleep(3)
+            await asyncio.sleep(20)
 
 # -------------------
 # Progress writer
@@ -232,6 +232,11 @@ def progress(current, total, client, progress_msg_id, message, type_, msg, user_
         progress.start_time = {}
     if key not in progress.start_time:
         progress.start_time[key] = time.time()
+    if not hasattr(progress, "last_update"):
+        progress.last_update = {}
+    if key in progress.last_update and time.time() - progress.last_update[key] < 2:
+        return
+    progress.last_update[key] = time.time()
 
     start_time = progress.start_time[key]
     now = time.time()
