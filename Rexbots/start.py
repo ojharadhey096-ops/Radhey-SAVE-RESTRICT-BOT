@@ -960,14 +960,44 @@ async def copy_message_public(client, sender, chat_id, message_id, original_mess
         msg = await client.get_messages(chat_id, message_id)
 
         if msg.media:
-            if msg.media == MessageMediaType.VIDEO:
-                result = await client.send_video(sender, msg.video.file_id, caption=msg.caption)
-            elif msg.media == MessageMediaType.DOCUMENT:
-                result = await client.send_document(sender, msg.document.file_id, caption=msg.caption)
-            elif msg.media == MessageMediaType.PHOTO:
-                result = await client.send_photo(sender, msg.photo.file_id, caption=msg.caption)
+            # Create progress message
+            progress_msg = await client.send_message(sender, "Starting download...", reply_to_message_id=original_message.id)
+
+            # Download with progress
+            file = await client.download_media(msg, progress=progress, progress_args=[client, progress_msg.id, original_message, "down", msg, "User", "Source"])
+
+            if not file or not os.path.exists(file):
+                await client.edit_message_text(sender, progress_msg.id, "❌ Failed to download media")
+                return
+
+            # Upload with progress
+            await client.edit_message_text(sender, progress_msg.id, "📤 Uploading...")
+
+            if msg.video:
+                result = await client.send_video(
+                    chat_id=sender,
+                    video=file,
+                    caption=clean_caption(msg.caption),
+                    progress=progress,
+                    progress_args=[client, progress_msg.id, original_message, "up", msg, "User", "Source"]
+                )
+            elif msg.photo:
+                result = await client.send_photo(sender, file, caption=clean_caption(msg.caption),
+                                               progress=progress,
+                                               progress_args=[client, progress_msg.id, original_message, "up", msg, "User", "Source"])
             else:
-                result = await client.copy_message(sender, chat_id, message_id)
+                result = await client.send_document(
+                    chat_id=sender,
+                    document=file,
+                    caption=clean_caption(msg.caption),
+                    progress=progress,
+                    progress_args=[client, progress_msg.id, original_message, "up", msg, "User", "Source"]
+                )
+
+            # Cleanup
+            if os.path.exists(file):
+                os.remove(file)
+            await client.delete_messages(sender, progress_msg.id)
         else:
             result = await client.copy_message(sender, chat_id, message_id)
 
