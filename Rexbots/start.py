@@ -919,24 +919,48 @@ async def process_and_upload_simple(client, sender, edit_id, msg, file):
         progress_msg = await client.send_message(sender, "Starting upload...", reply_to_message_id=edit_id)
 
         if msg.media == MessageMediaType.VIDEO:
+            # Create a dummy message object for progress callback
+            class DummyMessage:
+                def __init__(self, msg_id):
+                    self.id = msg_id
+                    self.from_user = type('obj', (object,), {'id': sender, 'first_name': 'User'})()
+            
+            dummy_msg = DummyMessage(sender)
+            
             await client.send_video(
                 chat_id=sender,
                 video=file,
                 caption=clean_caption(msg.caption),
                 progress=progress,
-                progress_args=[client, progress_msg.id, None, "up", msg, "User", "Source"]
+                progress_args=[client, progress_msg.id, dummy_msg, "up", msg, "User", "Source"]
             )
         elif msg.media == MessageMediaType.PHOTO:
+            # Create a dummy message object for progress callback
+            class DummyMessage:
+                def __init__(self, msg_id):
+                    self.id = msg_id
+                    self.from_user = type('obj', (object,), {'id': sender, 'first_name': 'User'})()
+            
+            dummy_msg = DummyMessage(sender)
+            
             await client.send_photo(sender, file, caption=clean_caption(msg.caption),
                                    progress=progress,
-                                   progress_args=[client, progress_msg.id, None, "up", msg, "User", "Source"])
+                                   progress_args=[client, progress_msg.id, dummy_msg, "up", msg, "User", "Source"])
         else:
+            # Create a dummy message object for progress callback
+            class DummyMessage:
+                def __init__(self, msg_id):
+                    self.id = msg_id
+                    self.from_user = type('obj', (object,), {'id': sender, 'first_name': 'User'})()
+            
+            dummy_msg = DummyMessage(sender)
+            
             await client.send_document(
                 chat_id=sender,
                 document=file,
                 caption=clean_caption(msg.caption),
                 progress=progress,
-                progress_args=[client, progress_msg.id, None, "up", msg, "User", "Source"]
+                progress_args=[client, progress_msg.id, dummy_msg, "up", msg, "User", "Source"]
             )
 
         # Cleanup
