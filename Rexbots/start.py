@@ -15,10 +15,11 @@ import platform
 import sys
 from pyrogram import Client, filters, enums
 from pyrogram.errors import (
-    FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, 
+    FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant,
     InviteHashExpired, UsernameNotOccupied, AuthKeyUnregistered, UserDeactivated, UserDeactivatedBan
 )
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, MessageMedia
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from pyrogram.enums import MessageMediaType
 from config import API_ID, API_HASH, ERROR_MESSAGE, LOG_CHANNEL, ADMINS
 from database.db import db
 import math
@@ -152,59 +153,24 @@ LOADING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇",
 PULSE_FRAMES = ["▓", "▒", "░"]
 SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
-# Modern Progress Bar Design
-MODERN_PROGRESS_BAR = "🟩{filled}🟨{current}🟥{remaining}"
+# Progress system constants
+START_STICKER_ID = "xxxx"  # Replace with actual animated sticker file ID for start
+DONE_STICKER_ID = "xxxx"   # Replace with actual animated sticker file ID for done
 
-# Progress bar for upload/download status
-PROGRESS_BAR = "🟩{filled}🟨{current}🟥{remaining}"
-
-# Colorful status indicators
-STATUS_COLORS = {
-    "down": "📥",
-    "up": "📤",
-    "processing": "🔄"
+# File type emojis
+FILE_TYPE_EMOJIS = {
+    "Video": "📹",
+    "Audio": "🎵",
+    "Document": "📄",
+    "Photo": "🖼️",
+    "Animation": "🎞️",
+    "Sticker": "🎭",
+    "Voice": "🎤",
+    "Text": "📝"
 }
 
-# Hindi Motivational Quotes for Progress Bar
-MOTIVATIONAL_QUOTES = [
-    "शुरुआत ही जीत की आधी राह है!",
-    "हर कदम आगे बढ़ाएगा!",
-    "मेहनत रंग लाएगी!",
-    "सपने सच बनाओ!",
-    "आज का प्रयास कल की सफलता!",
-    "रोकना मत, चलते रहो!",
-    "तुम्हारी मेहनत फल देगी!",
-    "लक्ष्य तक पहुंचने का समय!",
-    "थोड़ा और प्रयास, जीत करीब!",
-    "पूर्णता का द्वार खुल रहा है!",
-    "बधाई! आपने इसे पूरा किया!"
-]
-
-# Enhanced Animated Progress Bars for each 10% level
-PROGRESS_BARS = {
-    0: "🔹🔸🔻🔹🔸🔻🔹🔸🔻🔹",
-    10: "💥🔹⭐🍀🌙🔥🎯⚡🍩🔸",
-    20: "🌟🎧🎲🍫🧩⚙️🎈😎💧🔥",
-    30: "🍪🧩🌀💣🦄🧲🌙🚦🍟🐾",
-    40: "🧱🍀🎯🍩💥🎧💤🦋🎮🔊",
-    50: "🎉🌞🍫🧲🍕🎲🧃💥🎧🍀",
-    60: "🎯🧊🎈💜⭐🍩🧩🐢☀️🛸",
-    70: "🧩💥🎧🍪🎮🌀⚙️🍀🎲🌈",
-    80: "🎊🍕🎈🛸🍫🌙🦄🔥🍟⭐",
-    90: "🌀🧲🎯🌈🍕💥⭐🎮🧩🍀",
-    100: "🌈🌈🌈🌈🌈🌈🌈🌈🌈🌈"
-}
-
-# Colorful Animated Progress Bar - Emoji Style
-PROGRESS_BAR_DASHBOARD = """\
-{animated_bar} {percentage:.1f}%
-{quote}
-"""
-
-# Compact progress bar for inline updates
-COMPACT_PROGRESS = """\
-{spinner} {status} |{bar}| {percentage:.1f}% | {current}/{total} | {speed}/s | ETA: {eta}
-"""
+# Global dict to store progress message IDs
+progress_messages = {}
 
 
 
@@ -225,9 +191,9 @@ async def downstatus(client, statusfile, message, chat):
                 f"📥 **DOWNLOADING**\n{txt}",
                 parse_mode=enums.ParseMode.MARKDOWN
             )
-            await asyncio.sleep(5)
+            await asyncio.sleep(20)
         except:
-            await asyncio.sleep(3)
+            await asyncio.sleep(20)
 
 # -------------------
 # Upload status
@@ -246,160 +212,182 @@ async def upstatus(client, statusfile, message, chat):
                 f"📤 **UPLOADING**\n{txt}",
                 parse_mode=enums.ParseMode.MARKDOWN
             )
-            await asyncio.sleep(5)
+            await asyncio.sleep(20)
         except:
-            await asyncio.sleep(3)
+            await asyncio.sleep(20)
 
 # -------------------
 # Progress writer
 # -------------------
-
-def progress(current, total, message, type):
+def progress(current, total, client, progress_msg_id, message, type_, msg, user_name, source):
+    """
+    Progress callback for download/upload with real-time updates, stickers, and detailed info.
+    """
     # Check for cancellation
     if batch_temp.IS_BATCH.get(message.from_user.id):
         raise Exception("Cancelled")
 
-    # Initialize cache if not exists
-    if not hasattr(progress, "cache"):
-        progress.cache = {}
-    if not hasattr(progress, "frame_index"):
-        progress.frame_index = 0
-
-    now = time.time()
-    task_id = f"{message.id}{type}"
-    last_time = progress.cache.get(task_id, 0)
-
-    # Track start time for speed calc
+    key = f"{message.id}_{type_}"
     if not hasattr(progress, "start_time"):
         progress.start_time = {}
-    if task_id not in progress.start_time:
-        progress.start_time[task_id] = now
+    if key not in progress.start_time:
+        progress.start_time[key] = time.time()
+    if not hasattr(progress, "last_update"):
+        progress.last_update = {}
+    if key in progress.last_update and time.time() - progress.last_update[key] < 2:
+        return
+    progress.last_update[key] = time.time()
 
-    # Update every 0.5 seconds for smoother animation
-    if (now - last_time) > 0.5 or current == total:
-        try:
-            percentage = current * 100 / total
-            speed = current / (now - progress.start_time[task_id]) if (now - progress.start_time[task_id]) > 0 else 0
-            eta = (total - current) / speed if speed > 0 else 0
-            elapsed = now - progress.start_time[task_id]
+    start_time = progress.start_time[key]
+    now = time.time()
+    elapsed = now - start_time
+    if total > 0:
+        percentage = (current / total) * 100
+        speed = current / elapsed if elapsed > 0 else 0
+        eta = (total - current) / speed if speed > 0 else 0
+    else:
+        percentage = 0
+        speed = 0
+        eta = 0
 
-            # Status emoji based on type
-            if type == "down":
-                status_emoji = "📥 DOWNLOAD"
-            else:
-                status_emoji = "📤 UPLOAD"
+    # Get file info
+    msg_type = get_message_type(msg)
+    file_emoji = FILE_TYPE_EMOJIS.get(msg_type, "📦")
+    file_name = getattr(msg, 'document', None) and getattr(msg.document, 'file_name', None) or \
+               getattr(msg, 'video', None) and getattr(msg.video, 'file_name', None) or \
+               getattr(msg, 'audio', None) and getattr(msg.audio, 'file_name', None) or \
+               getattr(msg, 'photo', None) and "Photo" or \
+               msg_type
+    if not file_name:
+        file_name = msg_type
 
-            # Get animated spinner frame (cycles through different animations)
-            frame_idx = int(now * 3) % len(LOADING_FRAMES)
-            spinner = LOADING_FRAMES[frame_idx]
+    # Sizes
+    done_size = humanbytes(current)
+    total_size = humanbytes(total)
+    percent = int(percentage)
+    speed_str = f"{humanbytes(speed)}/s"
+    eta_str = TimeFormatter(int(eta))
+    elapsed_str = TimeFormatter(int(elapsed))
 
-            # Dynamic status color based on progress
-            if percentage < 25:
-                status_emoji_color = "🔴"
-            elif percentage < 50:
-                status_emoji_color = "🟠"
-            elif percentage < 75:
-                status_emoji_color = "🟡"
-            else:
-                status_emoji_color = "🟢"
+    # Progress bar
+    filled = percent // 10
+    remaining = 10 - filled
+    if percent < 100:
+        current_block = "🟨" if percent % 10 != 0 else ""
+        empty_count = remaining - len(current_block)
+        bar = "🟩" * filled + current_block + "⬜" * empty_count
+    else:
+        bar = "🟩" * 10
 
-            # Get progress level (0,10,20,...,100)
-            progress_level = int(percentage // 10) * 10
-            if progress_level > 100:
-                progress_level = 100
+    # Status
+    status = "📥 Downloading…" if type_ == "down" else "📤 Uploading…"
 
-            # Create modern progress bar with color indicators
-            filled_length = int(percentage / 10)  # 10 blocks for 100%
-            current_block = "🟨" if percentage < 100 else "🟩"
-            remaining_length = 10 - filled_length - (1 if percentage < 100 else 0)
-            
-            # Modern progress bar format
-            progress_bar = PROGRESS_BAR.format(
-                filled="🟩" * filled_length,
-                current=current_block,
-                remaining="🟥" * remaining_length
-            )
-            
-            status_emoji = STATUS_COLORS.get(type, "🔄")
-            status_formatted = f"{spinner} {status_emoji} |{progress_bar}| {percentage:.1f}% | {humanbytes(current)}/{humanbytes(total)} | {humanbytes(speed)}/s | ETA: {TimeFormatter(int(eta))}"
+    # Message text
+    text = f"""{status}
+{file_emoji} File: {file_name}
+📦 Size: {done_size}/{total_size}
+⚡ Speed: {speed_str}
+⏳ Elapsed: {elapsed_str}
+⏳ ETA: {eta_str}
+📊 Done: {percent}%
+{bar}
+👤 User: {user_name}
+📍 Source: {source}
+"""
 
-            with open(f'{message.id}{type}status.txt', "w", encoding='utf-8') as fileup:
-                fileup.write(status_formatted)
+    # Edit the message
+    client.loop.create_task(client.edit_message_text(message.chat.id, progress_msg_id, text, parse_mode=enums.ParseMode.MARKDOWN))
 
-            progress.cache[task_id] = now
-
-            if current == total:
-                # Cleanup cache
-                progress.start_time.pop(task_id, None)
-                progress.cache.pop(task_id, None)
-
-        except:
-            pass
-
+    # On complete
+    if current >= total:
+        if DONE_STICKER_ID:
+            client.loop.create_task(client.send_sticker(message.chat.id, DONE_STICKER_ID, reply_to_message_id=message.id))
+        # Clean up
+        progress.start_time.pop(key, None)
 # -------------------
 # Start command
 # -------------------
 
 @Client.on_message(filters.command(["start"]))
 async def send_start(client: Client, message: Message):
-    if not await db.is_user_exist(message.from_user.id):
-        await db.add_user(message.from_user.id, message.from_user.first_name)
-
-    session = await db.get_session(message.from_user.id)
-    login_status = "✅ Logged In" if session else "❌ Not Logged In"
-
-    buttons = [
-        [
-            InlineKeyboardButton("🆘 How To Use", callback_data="help_btn"),
-            InlineKeyboardButton("ℹ️ About Bot", callback_data="about_btn"),
-        ],
-        [
-              InlineKeyboardButton("⚙️ Settings", callback_data="settings_btn")
-        ],
-        [
-            InlineKeyboardButton('📢 Official Channel', url='https://t.me/RexBots_Official'),
-            InlineKeyboardButton('👨‍💻 Developer', url='https://t.me/about_zani/143')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(buttons)
-
     try:
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=(
-                f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
-                "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
-                "<blockquote><b>🚀 What I Can Do:</b>\n"
-                "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
-                "<b>‣ Support Private & Public Channels</b>\n"
-                "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
-                f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
-                "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
-            ),
-            reply_markup=reply_markup,
-            reply_to_message_id=message.id,
-            parse_mode=enums.ParseMode.HTML
-        )
-    except FloodWait as e:
-        # Handle flood wait by sleeping for the required duration
-        await asyncio.sleep(e.value)
-        # Retry the message after the wait period
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=(
-                f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
-                "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
-                "<blockquote><b>🚀 What I Can Do:</b>\n"
-                "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
-                "<b>‣ Support Private & Public Channels</b>\n"
-                "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
-                f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
-                "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
-            ),
-            reply_markup=reply_markup,
-            reply_to_message_id=message.id,
-            parse_mode=enums.ParseMode.HTML
-        )
+        if not await db.is_user_exist(message.from_user.id):
+            await db.add_user(message.from_user.id, message.from_user.first_name)
+
+        session = await db.get_session(message.from_user.id)
+        login_status = "✅ Logged In" if session else "❌ Not Logged In"
+
+        buttons = [
+            [
+                InlineKeyboardButton("🆘 How To Use", callback_data="help_btn"),
+                InlineKeyboardButton("ℹ️ About Bot", callback_data="about_btn"),
+            ],
+            [
+                  InlineKeyboardButton("⚙️ Settings", callback_data="settings_btn")
+            ],
+            [
+                InlineKeyboardButton('📢 Official Channel', url='https://t.me/RexBots_Official'),
+                InlineKeyboardButton('👨‍💻 Developer', url='https://t.me/about_zani/143')
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(buttons)
+
+        try:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text=(
+                    f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
+                    "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
+                    "<blockquote><b>🚀 What I Can Do:</b>\n"
+                    "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
+                    "<b>‣ Support Private & Public Channels</b>\n"
+                    "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
+                    f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
+                    "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
+                ),
+                reply_markup=reply_markup,
+                reply_to_message_id=message.id,
+                parse_mode=enums.ParseMode.HTML
+            )
+        except FloodWait as e:
+            # Handle flood wait by sleeping for the required duration
+            await asyncio.sleep(e.value)
+            # Retry the message after the wait period
+            try:
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text=(
+                        f"<blockquote><b>👋 Welcome {message.from_user.mention}!</b></blockquote>\n\n"
+                        "<b>I am the Advanced Save Restricted Content Bot by RexBots.</b>\n\n"
+                        "<blockquote><b>🚀 What I Can Do:</b>\n"
+                        "<b>‣ Save Restricted Post (Text, Media, Files)</b>\n"
+                        "<b>‣ Support Private & Public Channels</b>\n"
+                        "<b>‣ Batch/Bulk Mode Supported</b></blockquote>\n\n"
+                        f"<blockquote><b>🔐 Status:</b> {login_status}</blockquote>\n\n"
+                        "<blockquote><b>⚠️ Note:</b> <i>You must <code>/login</code> to your account to use the downloading features.</i></blockquote>"
+                    ),
+                    reply_markup=reply_markup,
+                    reply_to_message_id=message.id,
+                    parse_mode=enums.ParseMode.HTML
+                )
+            except Exception as e2:
+                # If retry also fails, send a simple message
+                await client.send_message(
+                    chat_id=message.chat.id,
+                    text="Welcome to Save Restricted Content Bot! Please try again later.",
+                    reply_to_message_id=message.id
+                )
+    except Exception as e:
+        logger.error(f"Error in start command: {e}")
+        # Send a simple error message
+        try:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text="Welcome to Save Restricted Content Bot! There was an issue loading your data.",
+                reply_to_message_id=message.id
+            )
+        except:
+            pass  # If even this fails, ignore
 
     # try:
     #     await message.react(
@@ -511,6 +499,129 @@ async def batch_command(client: Client, message: Message):
     if lol == 1:
         return
 
+    # Check if the command includes a link as argument
+    if len(message.command) > 1:
+        # Handle direct link format: /batch https://t.me/c/123456789/1-100
+        link_arg = message.command[1]
+        if "https://t.me/" in link_arg and "-" in link_arg:
+            # Extract start and end message IDs from the link
+            parts = link_arg.split("/")
+            if len(parts) >= 2:
+                last_part = parts[-1]
+                if "-" in last_part:
+                    try:
+                        # Extract start and end IDs
+                        start_id_part, end_id_part = last_part.split("-")
+                        start_msg_id = int(start_id_part)
+                        end_msg_id = int(end_id_part)
+                        
+                        # Reconstruct the base link
+                        base_link = "/".join(parts[:-1]) + "/"
+                        start_link = f"{base_link}{start_msg_id}"
+                        end_link = f"{base_link}{end_msg_id}"
+                        
+                        # Process the batch directly
+                        is_premium = await db.check_premium(user_id)
+                        is_admin = user_id in ADMINS
+                        limit = 1000 if is_premium or is_admin else 100
+                        
+                        # Calculate message count
+                        message_count = end_msg_id - start_msg_id + 1
+                        
+                        if message_count > limit:
+                            await client.send_message(message.chat.id, f"Only {limit} messages allowed in batch size... Purchase premium to fly 💸")
+                            return
+                        
+                        # Send confirmation before starting
+                        await client.send_message(message.chat.id, f"✅ Starting batch processing for {message_count} message(s)...")
+                        
+                        try:
+                            user_data = await db.get_session(user_id)
+                            
+                            if user_data:
+                                session = user_data
+                                try:
+                                    userbot = Client(":userbot:", api_id=API_ID, api_hash=API_HASH, session_string=session)
+                                    await userbot.start()
+                                except:
+                                    return await client.send_message(message.chat.id, "Your login expired ... /login again")
+                            else:
+                                await client.send_message(message.chat.id, "Login in bot first ...")
+                                return
+                            
+                            try:
+                                users_loop[user_id] = True
+                                
+                                # Process each message in the range
+                                for current_msg_id in range(start_msg_id, end_msg_id + 1):
+                                    if user_id in users_loop and users_loop[user_id]:
+                                        try:
+                                            # Create processing message
+                                            processing_msg = await client.send_message(message.chat.id, f"🔄 Processing message {current_msg_id}...")
+
+                                            # Build the URL
+                                            url = f"{base_link}{current_msg_id}"
+                                            link = get_link(url)
+
+                                            if not link:
+                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Invalid link format for message {current_msg_id}")
+                                                continue
+
+                                            # Get chat and message IDs
+                                            chat_id = get_chat_id_from_link(link)
+                                            msg_id = get_msg_id_from_link(link)
+
+                                            # Get the message
+                                            msg = await userbot.get_messages(chat_id, msg_id)
+                                            if msg.empty or msg.service:
+                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Message {current_msg_id} not found or empty")
+                                                continue
+
+                                            # Download
+                                            await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
+                                            file = await userbot.download_media(msg)
+                                            if not file or not os.path.exists(file):
+                                                await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to download message {current_msg_id}")
+                                                continue
+                                            await asyncio.sleep(1)
+
+                                            # Upload
+                                            await client.edit_message_text(message.chat.id, processing_msg.id, f"📤 Uploading message {current_msg_id}...")
+                                            await process_and_upload_simple(client, message.chat.id, processing_msg.id, msg, file)
+
+                                            # Add delay to avoid floodwait (only every 5 messages)
+                                            if (current_msg_id - start_msg_id) % 5 == 0 and current_msg_id != end_msg_id:
+                                                sleep_msg = await client.send_message(message.chat.id, "⏳ Sleeping for 3 seconds to avoid flood...")
+                                                await asyncio.sleep(3)
+                                                await sleep_msg.delete()
+
+                                        except Exception as e:
+                                            error_msg = f"❌ Error processing message {current_msg_id}: {str(e)}"
+                                            print(error_msg)
+                                            await client.send_message(message.chat.id, error_msg)
+                                            continue
+                                    else:
+                                        await client.send_message(message.chat.id, "⚠️ Batch processing cancelled by user.")
+                                        break
+                                
+                                # Send completion message
+                                completed_count = end_msg_id - start_msg_id + 1
+                                await client.send_message(message.chat.id, f"🎉 Batch processing completed! Successfully processed {completed_count} message(s).")
+                            except Exception as e:
+                                error_msg = f"❌ Fatal error in batch processing: {str(e)}"
+                                print(error_msg)
+                                await client.send_message(message.chat.id, error_msg)
+                            finally:
+                                # Clean up
+                                if user_id in users_loop:
+                                    del users_loop[user_id]
+                        except Exception as e:
+                            await client.send_message(message.chat.id, f"❌ Error starting batch process: {str(e)}")
+                        return
+                    except (ValueError, IndexError):
+                        pass
+
+    # If no direct link provided or invalid format, start interactive mode
     # Initialize batch conversation
     batch_conversations[user_id] = {
         "step": "waiting_for_start_link",
@@ -612,45 +723,49 @@ async def handle_batch_conversation(client: Client, message: Message):
                                 try:
                                     # Create processing message
                                     processing_msg = await client.send_message(message.chat.id, f"🔄 Processing message {current_msg_id}...")
-                                    
+
                                     # Build the URL
                                     x = start_id.split('/')
                                     y = x[:-1]
                                     result = '/'.join(y)
                                     url = f"{result}/{current_msg_id}"
                                     link = get_link(url)
-                                    
+
                                     if not link:
                                         await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Invalid link format for message {current_msg_id}")
                                         continue
-                                    
-                                    # Show download status
-                                    await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
-                                    
+
                                     # Get chat and message IDs
                                     chat_id = get_chat_id_from_link(link)
                                     msg_id = get_msg_id_from_link(link)
-                                    
-                                    # Debug: Log the message details
-                                    print(f"Processing message {current_msg_id}: chat={chat_id}, msg_id={msg_id}")
-                                    
-                                    # Handle the private message
-                                    success = await handle_private(client, userbot, message, chat_id, msg_id)
-                                    
-                                    if success:
-                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"✅ Completed message {current_msg_id}")
-                                    else:
-                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to process message {current_msg_id}")
-                                    
+
+                                    # Get the message
+                                    msg = await userbot.get_messages(chat_id, msg_id)
+                                    if msg.empty or msg.service:
+                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Message {current_msg_id} not found or empty")
+                                        continue
+
+                                    # Download
+                                    await client.edit_message_text(message.chat.id, processing_msg.id, f"📥 Downloading message {current_msg_id}...")
+                                    file = await userbot.download_media(msg)
+                                    if not file or not os.path.exists(file):
+                                        await client.edit_message_text(message.chat.id, processing_msg.id, f"❌ Failed to download message {current_msg_id}")
+                                        continue
+                                    await asyncio.sleep(1)
+
+                                    # Upload
+                                    await client.edit_message_text(message.chat.id, processing_msg.id, f"📤 Uploading message {current_msg_id}...")
+                                    await process_and_upload_simple(client, message.chat.id, processing_msg.id, msg, file)
+
                                     # Add delay to avoid floodwait (only every 5 messages)
                                     if (current_msg_id - start_msg_id) % 5 == 0 and current_msg_id != end_msg_id:
                                         sleep_msg = await client.send_message(message.chat.id, "⏳ Sleeping for 3 seconds to avoid flood...")
                                         await asyncio.sleep(3)
                                         await sleep_msg.delete()
-                                        
+
                                 except Exception as e:
                                     error_msg = f"❌ Error processing message {current_msg_id}: {str(e)}"
-                                    print(error_msg)  # Debug log
+                                    print(error_msg)
                                     await client.send_message(message.chat.id, error_msg)
                                     continue
                             else:
@@ -695,20 +810,6 @@ async def send_cancel(client: Client, message: Message):
 # Handle incoming messages
 # -------------------
 
-# Handler for batch conversation responses
-@Client.on_message(filters.private & filters.text & ~filters.regex("^/"))
-async def handle_batch_response(client: Client, message: Message):
-    chat_id = message.chat.id
-    
-    # First check if this is a batch conversation
-    if chat_id in batch_conversations:
-        # Let the batch conversation handler process this
-        return
-    
-    # Then check user queues
-    if chat_id in user_queues:
-        await user_queues[chat_id].put(message)
-        return
 
 @Client.on_message(filters.private & filters.regex(r'https?://[^\s]+') & ~filters.create(lambda _, __, msg: msg.chat.id in user_queues))
 async def single_link(client: Client, message: Message):
@@ -770,7 +871,7 @@ async def process_single_link(client, userbot, sender, edit_id, msg_link, messag
                     await msg.edit_text("Message not found or empty.")
                     return
 
-                if msg.media and msg.media == MessageMedia.WEB_PAGE:
+                if msg.media and msg.media == MessageMediaType.WEB_PAGE:
                     await client.edit_message_text(sender, edit_id, "Cloning...")
                     safe_repo = await client.send_message(sender, msg.text.markdown)
                     if LOG_CHANNEL:
@@ -810,13 +911,17 @@ async def process_and_upload_simple(client, sender, edit_id, msg, file):
     try:
         await client.edit_message_text(sender, edit_id, "📤 Uploading...")
         
-        if msg.media == MessageMedia.VIDEO:
+        # Verify file exists and is valid before uploading
+        if not file or not os.path.exists(file):
+            raise Exception("Media file not found for upload")
+        
+        if msg.media == MessageMediaType.VIDEO:
             await client.send_video(
                 chat_id=sender,
                 video=file,
                 caption=clean_caption(msg.caption)
             )
-        elif msg.media == MessageMedia.PHOTO:
+        elif msg.media == MessageMediaType.PHOTO:
             await client.send_photo(sender, file, caption=clean_caption(msg.caption))
         else:
             await client.send_document(
@@ -838,17 +943,19 @@ async def process_and_upload_simple(client, sender, edit_id, msg, file):
                 os.remove(file)
             except:
                 pass
+        # Send error message to user
+        await client.edit_message_text(sender, edit_id, f"❌ Upload failed: {str(e)}")
 
 async def copy_message_public(client, sender, chat_id, message_id, original_message):
     try:
         msg = await client.get_messages(chat_id, message_id)
 
         if msg.media:
-            if msg.media == MessageMedia.VIDEO:
+            if msg.media == MessageMediaType.VIDEO:
                 result = await client.send_video(sender, msg.video.file_id, caption=msg.caption)
-            elif msg.media == MessageMedia.DOCUMENT:
+            elif msg.media == MessageMediaType.DOCUMENT:
                 result = await client.send_document(sender, msg.document.file_id, caption=msg.caption)
-            elif msg.media == MessageMedia.PHOTO:
+            elif msg.media == MessageMediaType.PHOTO:
                 result = await client.send_photo(sender, msg.photo.file_id, caption=msg.caption)
             else:
                 result = await client.copy_message(sender, chat_id, message_id)
@@ -876,7 +983,7 @@ async def copy_message_public(client, sender, chat_id, message_id, original_mess
 async def process_and_upload(client, userbot, sender, edit_id, msg, file, message):
     await client.edit_message_text(sender, edit_id, 'Trying to Upload...')
 
-    if msg.media == MessageMedia.VIDEO:
+    if msg.media == MessageMediaType.VIDEO:
         try:
             await client.send_video(
                 chat_id=sender,
@@ -888,7 +995,7 @@ async def process_and_upload(client, userbot, sender, edit_id, msg, file, messag
         except:
             await client.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
 
-    elif msg.media == MessageMedia.PHOTO:
+    elif msg.media == MessageMediaType.PHOTO:
         await client.send_photo(sender, file, caption=clean_caption(msg.caption))
 
     else:
@@ -1031,6 +1138,10 @@ async def save(client: Client, message: Message):
                     logger.error(f"Error copy/handle private: {e}")
                     if ERROR_MESSAGE:
                          await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
+            
+            # Enhanced logging for debugging channel issues
+            logger.info(f"Processed message {msgid} from channel {username if not is_private else chatid}")
+            logger.info(f"User: {message.from_user.id}, Session valid: {await db.get_session(message.from_user.id) is not None}")
 
             await asyncio.sleep(2)
 
@@ -1077,6 +1188,21 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 "The bot will continue processing other messages."
             )
         
+        # Enhanced error handling for specific channels like https://t.me/Rk_Movie096
+        if "Rk_Movie096" in str(e) or chatid == -1003508871162:
+            logger.error(f"Specific channel error - Rk_Movie096: {str(e)}")
+            await client.send_message(
+                message.chat.id,
+                f"❌ **Channel-Specific Error - Rk_Movie096**\n\n"
+                f"**Error Type:** {type(e).__name__}\n"
+                f"**Error Details:** {str(e)}\n\n"
+                "**Debugging Information:**\n"
+                f"• Channel ID: {chatid}\n"
+                f"• Message ID: {msgid}\n"
+                "• This channel may have restrictions or require special permissions\n"
+                "• The bot will attempt to continue with other messages"
+            )
+        
         try:
             async for dialog in acc.get_dialogs(limit=None):
                 if dialog.chat.id == chatid:
@@ -1101,6 +1227,12 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                     "• Your permissions\n"
                     "• Bot session validity"
                 )
+            
+            # Enhanced logging for debugging
+            logger.error(f"Final error for channel {chatid}, message {msgid}: {str(e2)}")
+            logger.error(f"Channel ID: {chatid}, Message ID: {msgid}")
+            logger.error(f"User ID: {message.from_user.id}")
+            logger.error(f"Session valid: {await db.get_session(message.from_user.id) is not None}")
             
             return False
 
@@ -1141,14 +1273,23 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
-    try:
-        asyncio.create_task(downstatus(client, f'{message.id}downstatus.txt', smsg, chat))
-    except Exception as e:
-        logger.error(f"Error creating download status task: {e}")
         
     try:
+        # Get source info for progress
+        try:
+            chat_info = await acc.get_chat(chatid)
+            source_title = chat_info.title if chat_info else str(chatid)
+        except:
+            source_title = str(chatid)
+        user_name = message.from_user.first_name
+
+        # Send start sticker and progress message
+        if START_STICKER_ID:
+            await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
+        progress_msg = await client.send_message(message.chat.id, "Starting download...", reply_to_message_id=message.id)
+
         # Download into unique directory (folder path must end with / for Pyrogram)
-        file = await acc.download_media(msg, file_name=f"{temp_dir}/", progress=progress, progress_args=[message, "down"])
+        file = await acc.download_media(msg, file_name=f"{temp_dir}/", progress=progress, progress_args=[client, progress_msg.id, message, "down", msg, user_name, source_title])
         
         # Ensure file was downloaded successfully
         if not file or not os.path.exists(file):
@@ -1196,10 +1337,6 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 pass
         return False
 
-    try:
-        asyncio.create_task(upstatus(client, f'{message.id}upstatus.txt', smsg, chat))
-    except Exception as e:
-        logger.error(f"Error creating upload status task: {e}")
     caption = clean_caption(msg.caption) if msg.caption else None
     
     if batch_temp.IS_BATCH.get(message.from_user.id):
@@ -1212,9 +1349,20 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         return False
 
     try:
+        # Send start sticker and progress message for upload
+        if START_STICKER_ID:
+            await client.send_sticker(message.chat.id, START_STICKER_ID, reply_to_message_id=message.id)
+        progress_msg = await client.send_message(message.chat.id, "Starting upload...", reply_to_message_id=message.id)
+
         # Ensure file exists before attempting to send
         if not file or not os.path.exists(file):
             raise Exception("Media file not found for upload")
+        try:
+            chat_info = await acc.get_chat(chatid)
+            source_title = chat_info.title if chat_info else str(chatid)
+        except:
+            source_title = str(chatid)
+        user_name = message.from_user.first_name
             
         if "Document" == msg_type:
             try:
@@ -1223,7 +1371,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 ph_path = None
             await client.send_document(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id,
                                        parse_mode=enums.ParseMode.HTML, progress=progress,
-                                       progress_args=[message, "up"])
+                                       progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
             if ph_path and os.path.exists(ph_path):
                 os.remove(ph_path)
 
@@ -1235,7 +1383,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             await client.send_video(chat, file, duration=msg.video.duration, width=msg.video.width,
                                     height=msg.video.height, thumb=ph_path, caption=caption,
                                     reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML,
-                                    progress=progress, progress_args=[message, "up"])
+                                    progress=progress, progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
             if ph_path and os.path.exists(ph_path):
                 os.remove(ph_path)
 
@@ -1248,7 +1396,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
         elif "Voice" == msg_type:
             await client.send_voice(chat, file, caption=caption, caption_entities=msg.caption_entities,
                                     reply_to_message_id=message.id, parse_mode=enums.ParseMode.HTML,
-                                    progress=progress, progress_args=[message, "up"])
+                                    progress=progress, progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
 
         elif "Audio" == msg_type:
             try:
@@ -1257,7 +1405,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
                 ph_path = None
             await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id,
                                     parse_mode=enums.ParseMode.HTML, progress=progress,
-                                    progress_args=[message, "up"])
+                                    progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
             if ph_path and os.path.exists(ph_path):
                 os.remove(ph_path)
 
