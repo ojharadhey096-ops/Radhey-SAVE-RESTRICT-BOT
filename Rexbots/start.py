@@ -18,7 +18,7 @@ from pyrogram.errors import (
     FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, 
     InviteHashExpired, UsernameNotOccupied, AuthKeyUnregistered, UserDeactivated, UserDeactivatedBan
 )
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, MessageMedia
 from config import API_ID, API_HASH, ERROR_MESSAGE, LOG_CHANNEL, ADMINS
 from database.db import db
 import math
@@ -154,6 +154,9 @@ SPINNER_FRAMES = ["◐", "◓", "◑", "◒"]
 
 # Modern Progress Bar Design
 MODERN_PROGRESS_BAR = "🟩{filled}🟨{current}🟥{remaining}"
+
+# Progress bar for upload/download status
+PROGRESS_BAR = "🟩{filled}🟨{current}🟥{remaining}"
 
 # Colorful status indicators
 STATUS_COLORS = {
@@ -311,7 +314,7 @@ def progress(current, total, message, type):
             remaining_length = 10 - filled_length - (1 if percentage < 100 else 0)
             
             # Modern progress bar format
-            progress_bar = MODERN_PROGRESS_BAR.format(
+            progress_bar = PROGRESS_BAR.format(
                 filled="🟩" * filled_length,
                 current=current_block,
                 remaining="🟥" * remaining_length
@@ -767,7 +770,7 @@ async def process_single_link(client, userbot, sender, edit_id, msg_link, messag
                     await msg.edit_text("Message not found or empty.")
                     return
 
-                if msg.media and msg.media == MessageMediaType.WEB_PAGE:
+                if msg.media and msg.media == MessageMedia.WEB_PAGE:
                     await client.edit_message_text(sender, edit_id, "Cloning...")
                     safe_repo = await client.send_message(sender, msg.text.markdown)
                     if LOG_CHANNEL:
@@ -807,13 +810,13 @@ async def process_and_upload_simple(client, sender, edit_id, msg, file):
     try:
         await client.edit_message_text(sender, edit_id, "📤 Uploading...")
         
-        if msg.media == MessageMediaType.VIDEO:
+        if msg.media == MessageMedia.VIDEO:
             await client.send_video(
                 chat_id=sender,
                 video=file,
                 caption=clean_caption(msg.caption)
             )
-        elif msg.media == MessageMediaType.PHOTO:
+        elif msg.media == MessageMedia.PHOTO:
             await client.send_photo(sender, file, caption=clean_caption(msg.caption))
         else:
             await client.send_document(
@@ -841,11 +844,11 @@ async def copy_message_public(client, sender, chat_id, message_id, original_mess
         msg = await client.get_messages(chat_id, message_id)
 
         if msg.media:
-            if msg.media == MessageMediaType.VIDEO:
+            if msg.media == MessageMedia.VIDEO:
                 result = await client.send_video(sender, msg.video.file_id, caption=msg.caption)
-            elif msg.media == MessageMediaType.DOCUMENT:
+            elif msg.media == MessageMedia.DOCUMENT:
                 result = await client.send_document(sender, msg.document.file_id, caption=msg.caption)
-            elif msg.media == MessageMediaType.PHOTO:
+            elif msg.media == MessageMedia.PHOTO:
                 result = await client.send_photo(sender, msg.photo.file_id, caption=msg.caption)
             else:
                 result = await client.copy_message(sender, chat_id, message_id)
@@ -873,7 +876,7 @@ async def copy_message_public(client, sender, chat_id, message_id, original_mess
 async def process_and_upload(client, userbot, sender, edit_id, msg, file, message):
     await client.edit_message_text(sender, edit_id, 'Trying to Upload...')
 
-    if msg.media == MessageMediaType.VIDEO:
+    if msg.media == MessageMedia.VIDEO:
         try:
             await client.send_video(
                 chat_id=sender,
@@ -885,7 +888,7 @@ async def process_and_upload(client, userbot, sender, edit_id, msg, file, messag
         except:
             await client.edit_message_text(sender, edit_id, "The bot is not an admin in the specified chat...")
 
-    elif msg.media == MessageMediaType.PHOTO:
+    elif msg.media == MessageMedia.PHOTO:
         await client.send_photo(sender, file, caption=clean_caption(msg.caption))
 
     else:
