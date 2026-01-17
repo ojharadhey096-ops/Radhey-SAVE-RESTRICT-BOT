@@ -907,35 +907,44 @@ async def process_single_link(client, userbot, sender, edit_id, msg_link, messag
             await client.edit_message_text(sender, edit_id, f"Error: {str(e)}")
 
 async def process_and_upload_simple(client, sender, edit_id, msg, file):
-    """Simple upload without progress to avoid stuck issues"""
+    """Simple upload with progress to show upload status"""
     try:
         await client.edit_message_text(sender, edit_id, "📤 Uploading...")
-        
+
         # Verify file exists and is valid before uploading
         if not file or not os.path.exists(file):
             raise Exception("Media file not found for upload")
-        
+
+        # Create progress message
+        progress_msg = await client.send_message(sender, "Starting upload...", reply_to_message_id=edit_id)
+
         if msg.media == MessageMediaType.VIDEO:
             await client.send_video(
                 chat_id=sender,
                 video=file,
-                caption=clean_caption(msg.caption)
+                caption=clean_caption(msg.caption),
+                progress=progress,
+                progress_args=[client, progress_msg.id, None, "up", msg, "User", "Source"]
             )
         elif msg.media == MessageMediaType.PHOTO:
-            await client.send_photo(sender, file, caption=clean_caption(msg.caption))
+            await client.send_photo(sender, file, caption=clean_caption(msg.caption),
+                                   progress=progress,
+                                   progress_args=[client, progress_msg.id, None, "up", msg, "User", "Source"])
         else:
             await client.send_document(
                 chat_id=sender,
                 document=file,
-                caption=clean_caption(msg.caption)
+                caption=clean_caption(msg.caption),
+                progress=progress,
+                progress_args=[client, progress_msg.id, None, "up", msg, "User", "Source"]
             )
-        
+
         # Cleanup
         if os.path.exists(file):
             os.remove(file)
-        
-        await client.delete_messages(sender, edit_id)
-        
+
+        await client.delete_messages(sender, [edit_id, progress_msg.id])
+
     except Exception as e:
         logger.error(f"Error in upload: {e}")
         if os.path.exists(file):
@@ -1366,7 +1375,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
             
         if "Document" == msg_type:
             try:
-                ph_path = await acc.download_media(msg.document.thumbs[0].file_id)
+                ph_path = await acc.download_media(msg.document.thumbs[0].file_id) if msg.document.thumbs else None
             except:
                 ph_path = None
             await client.send_document(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id,
@@ -1377,7 +1386,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
 
         elif "Video" == msg_type:
             try:
-                ph_path = await acc.download_media(msg.video.thumbs[0].file_id)
+                ph_path = await acc.download_media(msg.video.thumbs[0].file_id) if msg.video.thumbs else None
             except:
                 ph_path = None
             await client.send_video(chat, file, duration=msg.video.duration, width=msg.video.width,
@@ -1400,7 +1409,7 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
 
         elif "Audio" == msg_type:
             try:
-                ph_path = await acc.download_media(msg.audio.thumbs[0].file_id)
+                ph_path = await acc.download_media(msg.audio.thumbs[0].file_id) if msg.audio.thumbs else None
             except:
                 ph_path = None
             await client.send_audio(chat, file, thumb=ph_path, caption=caption, reply_to_message_id=message.id,
@@ -1411,7 +1420,8 @@ async def handle_private(client: Client, acc, message: Message, chatid: int, msg
 
         elif "Photo" == msg_type:
             await client.send_photo(chat, file, caption=caption, reply_to_message_id=message.id,
-                                    parse_mode=enums.ParseMode.HTML)
+                                    parse_mode=enums.ParseMode.HTML, progress=progress,
+                                    progress_args=[client, progress_msg.id, message, "up", msg, user_name, source_title])
     except Exception as e:
         # Check if cancelled (flag is True) or exception message contains "Cancelled"
         if batch_temp.IS_BATCH.get(message.from_user.id) or "Cancelled" in str(e):
